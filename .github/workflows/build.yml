@@ -1,7 +1,7 @@
 name: Build and Push Image
 on:
   schedule:
-    - cron: '15 09 * * *'  # 9:15am everyday
+    - cron: '40 16 * * *'  # 16:40 UTC everyday
   merge_group:
   pull_request:
     branches:
@@ -11,6 +11,10 @@ on:
   workflow_dispatch:
 env:
     IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   push-ghcr:
@@ -28,12 +32,12 @@ jobs:
         major_version: [38, 39]
         include:
           - major_version: 38
-            is_latest_version: true
+            is_latest_version: false
             is_stable_version: true
             is_gts_version: true
           - major_version: 39
             is_latest_version: true
-            is_stable_version: false
+            is_stable_version: true
             is_gts_version: false
     steps:
       - name: Maximize build space
@@ -42,6 +46,9 @@ jobs:
       # Checkout push-to-registry action GitHub repository
       - name: Checkout Push to Registry action
         uses: actions/checkout@v4
+
+      - name: Check just syntax
+        uses: ublue-os/just-action@v1
 
       - name: Matrix Variables
         run: |
@@ -82,9 +89,7 @@ jobs:
           if [[ "${{ matrix.is_latest_version }}" == "true" ]] && \
              [[ "${{ matrix.is_stable_version }}" == "true" ]]; then
               BUILD_TAGS+=("latest")
-          fi
-
-          if [[ "${{ matrix.is_gts_version }}" == "true" ]]; then
+          elif [[ "${{ matrix.is_gts_version }}" == "true" ]]; then
               BUILD_TAGS+=("gts")
           fi
 
@@ -182,7 +187,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Sign container
-      - uses: sigstore/cosign-installer@v3.1.2
+      - uses: sigstore/cosign-installer@v3.2.0
         if: github.event_name != 'pull_request'
 
       - name: Sign container image
